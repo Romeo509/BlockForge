@@ -1,46 +1,47 @@
 from tronpy import Tron
-from tronpy.keys import PrivateKey
 
-# Initialize Tron client
+# Initialize the Tron client
 client = Tron()
 
-# 1. Create a new Tron wallet
-def create_wallet():
-    # Generate a private key
-    private_key = PrivateKey.random()
-    public_key = private_key.public_key
-    address = public_key.to_base58check_address()
+# USDT (TRC-20) Contract Address on the Tron blockchain
+USDT_CONTRACT_ADDRESS = 'TQFTT9JP3fnSVo4G65g7zXqLwXfJJwxtQm'
 
-    # Return wallet details
-    return {
-        'private_key': private_key.hex(),
-        'public_key': public_key.hex(),
-        'address': address
-    }
+# Initialize the contract object for USDT (TRC-20)
+contract = client.get_contract(USDT_CONTRACT_ADDRESS)
 
-# 2. Check balance of USDT (TRC-20)
-def check_balance(address):
-    contract = client.get_contract('TetherUSD_Contract_Address')  # Use USDT contract address on Tron
+# Function to check the balance of a TRC-20 token for a given address
+def check_balance(address: str) -> float:
+    """
+    Check the balance of the TRC-20 token for a specific address.
+    
+    :param address: The address to check the balance of.
+    :return: The balance of the TRC-20 token in the smallest unit (converted to USDT).
+    """
     balance = contract.functions.balanceOf(address).call()
-    return balance
+    return balance / 1e6  # USDT has 6 decimal places
 
-# 3. Send USDT (TRC-20) from one wallet to another
-def send_usdt(from_private_key, to_address, amount):
-    private_key = PrivateKey.from_hex(from_private_key)
-    account = client.trx.get_account(private_key.public_key.to_base58check_address())
-    contract = client.get_contract('TetherUSD_Contract_Address')
-
-    # Prepare transaction data
-    txn = contract.functions.transfer(to_address, amount).with_owner(private_key.public_key).build()
-    txn = txn.sign(private_key)
-
-    # Send transaction
-    txn_hash = txn.broadcast().wait()
-    return txn_hash
-
-# 4. Check the status of a transaction
-def check_transaction_status(txn_hash):
-    txn = client.trx.get_transaction(txn_hash)
-    return txn['receipt']['result']
-
+# Function to send USDT from one address to another
+def send_usdt(from_address: str, private_key: str, to_address: str, amount: float) -> str:
+    """
+    Send USDT (TRC-20) from one address to another.
+    
+    :param from_address: The address to send USDT from.
+    :param private_key: The private key of the sender to sign the transaction.
+    :param to_address: The address to send USDT to.
+    :param amount: The amount of USDT to send.
+    :return: The transaction ID of the broadcasted transaction.
+    """
+    # Get the private key for signing the transaction
+    account = client.from_key(private_key)
+    
+    # Transfer the amount to the recipient address (convert amount to smallest unit, 6 decimals for USDT)
+    txn = contract.functions.transfer(to_address, int(amount * 1e6))
+    
+    # Build and sign the transaction
+    transaction = txn.build()
+    signed = transaction.sign(account)
+    
+    # Broadcast the transaction and get the transaction ID
+    tx_id = signed.broadcast().txid
+    return tx_id
 
